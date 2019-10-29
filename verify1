@@ -1,0 +1,84 @@
+
+Nt = 8;
+P  = 64;
+M  = 4;
+x  = randn(Nt,1) + 1j * randn(Nt,1);
+Hr = randn(M,P)  + 1j * randn(M,P) ;
+V  = diag( randn(P,1) + 1j * randn(P,1) );
+G  = randn(P,Nt) + 1j * randn(P,Nt);
+Hd = randn(M,Nt) + 1j * randn(M,Nt);
+s  = randi([0 3] , M ,1);
+um = 1;
+epm= pskmod(s,4,pi/4);
+PHI= pi/8;
+
+%% PART 1 ORIGINAL PROBLEM
+tm = zeros(M,1);
+for m=1:M
+    tm(m) = ((Hr(m,:) * V * G)+ Hd(m,:))*x /epm(m)-um;
+    Margin(m) = (real(tm(m))*tan(PHI)-abs(imag(tm(m))))*cos(PHI);
+end
+
+
+%% PART 2 COMBINE X V INTO Z
+v= diag(V);
+z = [v ; x];
+Gex  = zeros(P+Nt);
+Gex(1:size(G,1),1:size(G,2)) =G ;
+Qpre = eye(P+Nt);
+Q(1:Nt,:) = Qpre (P+1:P+Nt,:);
+Q(Nt+1:P+Nt,:) = Qpre(1:P,:);
+tmz=zeros(M,1);
+Hrex=zeros(P+Nt);
+for m=1:M
+    Hrex(1:P,1:P)= diag(Hr(m,:));
+    tmz(m) = (z.' * Hrex*Gex*Q*z + [Hd(m,:) zeros(1,P)]*Q*z)/epm(m,:) - um;
+end
+
+%% PART 3 SPLIT Z INTO Z_REAL & Z_IMAG
+tm_real = zeros(M,1);
+tm_imag = zeros(M,1);
+for m=1:M
+    Hrex(1:P,1:P)= diag(Hr(m,:));
+    A = Hrex*Gex*Q/epm(m,:);
+    B = [Hd(m,:) zeros(1,P)]*Q/epm(m,:);
+    Ar=real(A);Ai=imag(A);
+    Br=real(B);Bi=imag(B);
+    zhap = [real(z) ; imag(z)];
+    tm_real(m) =( zhap' * [Ar -Ai; -Ai -Ar]*zhap + [Br -Bi]*zhap )-1;
+    tm_imag(m) =  zhap' * [Ai  Ar;  Ar -Ai]*zhap + [Bi  Br]*zhap;
+    K = [Ar -Ai; -Ai -Ar]*tan(PHI) - sign(tm_imag(m))*[Ai  Ar;  Ar -Ai] ;
+    F = [Br -Bi] *tan(PHI) - sign(tm_imag(m))*[Bi  Br];
+    Margin_split(m) = (zhap'*K*zhap + F*zhap )*cos(PHI)-sin(PHI);
+    partial_M_z(m,:) = zhap'*(K+K')+F;
+    
+    % 验证 所求方向是不是梯度方向
+    % 通过朝着所求方向移动求函数变化量 以及随机方向移动的变化量的比对 得到方向正确
+    zhap_gradint = (partial_M_z(m,:)/norm(partial_M_z(m,:)) * 1e-4+ zhap')';
+    Margin_split_zhap_gradint(m) = ...
+        (zhap_gradint'*K*zhap_gradint + F*zhap_gradint )*cos(PHI)-sin(PHI);
+    dlt_ran = randn(1,2*(Nt+P));
+    zhap_ran = (dlt_ran/norm(dlt_ran) * 1e-4+ zhap')';
+    Margin_split_zhap_ran(m) = ...
+        (zhap_ran'*K*zhap_ran + F*zhap_ran )*cos(PHI)-sin(PHI);
+end
+
+change_dir = Margin_split-Margin_split_zhap_gradint；
+change_ran = Margin_split-Margin_split_zhap_ran；
+distor_tm = norm(tm - tm_real - 1j * tm_imag);
+distor_M  = norm(Margin - Margin_split);
+if(distro < 1e-5)
+    disp('实单变量分解tm结果正确');
+else
+    disp('实单变量分解tm结果错误');
+end
+if(distor_M<1e-5)
+    disp('实单变量分解Margin正确')
+else
+    disp('实单变量分解Margin错误')
+end
+if((Margin_split - Margin_split_zhap_gradint) < (Margin_split - Margin_split_zhap_ran))
+    disp('梯度计算正确')
+else
+    disp('梯度计算错误')
+end
