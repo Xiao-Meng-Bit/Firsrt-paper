@@ -66,7 +66,7 @@ change_dir = Margin_split-Margin_split_zhap_gradint;
 change_ran = Margin_split-Margin_split_zhap_ran;
 distor_tm = norm(tm - tm_real - 1j * tm_imag);
 distor_M  = norm(Margin - Margin_split);
-if(distro < 1e-5)
+if(distor_tm < 1e-5)
     disp('实单变量分解tm结果正确');
 else
     disp('实单变量分解tm结果错误');
